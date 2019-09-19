@@ -98,8 +98,7 @@ Add-Type -AssemblyName 'System.Drawing'
             catch {
                 $ExifDT = $null;
             }
-            Write-verbose $ExifDT.ToString()
-            $ExifDT
+            #$ExifDT
         }
         Catch{
             Write-Warning "Check $ImageFile is a valid image file ($_)"
@@ -129,6 +128,17 @@ Add-Type -AssemblyName 'System.Drawing'
                 $OldTime = [datetime]::ParseExact($ExifDtStringDt,"yyyy:MM:dd HH:mm:ss`0",$Null)  #uncomment this one after testing
 
                 Write-Verbose "Old date taken is $OldTime"
+
+            }
+            else {
+                #set up an item to update with the new date
+                write-verbose "no previous exif date (aka [date taken]) property exists"
+                #274 seems to exist for all files/images
+                $ExistingProperty=$Img.GetPropertyItem('274')
+                $ExistingProperty.Id = 36867
+                $ExistingProperty.Len = 41
+                $ExistingProperty.Type = 2
+                $ExifDT = $ExistingProperty
 
             }
         }
