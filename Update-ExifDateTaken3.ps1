@@ -54,18 +54,17 @@ Add-Type -AssemblyName 'System.Drawing'
     # Cater for arrays of filenames and wild-cards by using Resolve-Path
     Write-Verbose "Processing input item '$Path'"
 
-    $PathItems = Resolve-Path `
-                    $Path `
-                    -ErrorAction SilentlyContinue `
-                    -ErrorVariable ResolveError
-
-    write-verbose $PathItems
+    if (Test-Path $Path) {
+        $PathItem = $Path
+    }
+    else {
+        throw $_.Exception.Message
+    }
 
     If ($ResolveError) {
         Write-Warning "Bad path '$Path' ($($ResolveError[0].CategoryInfo.Category))"
     }
 
-    Foreach ($PathItem in $PathItems) {
         # Read the current file and extract the Exif DateTaken property
 
 
@@ -73,7 +72,8 @@ Add-Type -AssemblyName 'System.Drawing'
 
         $ExifDT = $null
 
-        $ImageFile=(Get-ChildItem $PathItem.Path).FullName
+        #$ImageFile=(Get-ChildItem $PathItem.Path).FullName
+        $ImageFile=(Get-Item $PathItem).FullName
         write-verbose "ImageFile variable is $ImageFile"
 
         Try {
@@ -116,8 +116,9 @@ Add-Type -AssemblyName 'System.Drawing'
                 $ExifDtStringDt=([System.Text.Encoding]::ASCII.GetString($ExifDT.Value[0..9])) -replace ":", "-"
                 
                 Write-Verbose "Old date taken appending 00:00:00"
-                $ExifDtStringDt = "$ExifDtStringDt 00:00:00"
-                #$ExifDtStringDt
+                $ExifDtStringDt = "$ExifDtStringDt 00:00:00`0"
+                [datetime]$ExifDt2 = $ExifDtStringDt;
+                Write-Verbose $ExifDt2
 
                 # Convert the result to a [DateTime]
                 # Note: This looks like a string, but it has a trailing zero (0x00) character that 
@@ -125,7 +126,8 @@ Add-Type -AssemblyName 'System.Drawing'
 
                 Write-Verbose "Old date taken value is $ExifDtStringDt"
 
-                $OldTime = [datetime]::ParseExact($ExifDtStringDt,"yyyy:MM:dd HH:mm:ss`0",$Null)  #uncomment this one after testing
+                #$OldTime = [datetime]::ParseExact($ExifDtStringDt,"yyyy:MM:dd HH:mm:ss`0",$Null)  #uncomment this one after testing
+                $OldTime = [datetime]::ParseExact($ExifDt2,"yyyy:MM:dd HH:mm:ss`0",$Null)  #uncomment this one after testing
 
                 Write-Verbose "Old date taken is $OldTime"
 
@@ -133,6 +135,7 @@ Add-Type -AssemblyName 'System.Drawing'
             else {
                 #set up an item to update with the new date
                 write-verbose "no previous exif date (aka [date taken]) property exists"
+                
                 #274 seems to exist for all files/images
                 $ExistingProperty=$Img.GetPropertyItem('274')
                 $ExistingProperty.Id = 36867
@@ -147,9 +150,18 @@ Add-Type -AssemblyName 'System.Drawing'
             # Only continue if an absolute time was specified
             #Todo: Add an absolute parameter and a parameter-set
             # If ($Absolute) {Continue} Else {Break}
-            $Img.Dispose();
-            $FileStream.Close()
-            Break
+            
+            #removed when troubleshooting
+            #$Img.Dispose();
+            #$FileStream.Close()
+
+            $ExistingProperty=$Img.GetPropertyItem('274')
+            $ExistingProperty.Id = 36867
+            $ExistingProperty.Len = 41
+            $ExistingProperty.Type = 2
+            $ExifDT = $ExistingProperty
+
+            #Break
         }
 
         Write-Verbose "Extracted EXIF infomation from $ImageFile"
@@ -221,6 +233,8 @@ Add-Type -AssemblyName 'System.Drawing'
         Add-Member -MemberType NoteProperty -Name ExifDateTaken -Value $NewTime -PassThru # |
         }
 
+        Write-Verbose "PathItem is $PathItem"
+
         [System.IO.FileSystemInfo]$fsInfo = new-object System.IO.FileInfo($PathItem)
         
         $fsInfo.CreationTime = $DateTaken
@@ -248,8 +262,6 @@ Add-Type -AssemblyName 'System.Drawing'
         #     $fsInfo.LastWriteTime = $DateTaken
         #     $fsInfo.LastAccessTime = $DateTaken
         # }
-
-    } # End Foreach Path
 
 }
 
