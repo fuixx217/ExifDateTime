@@ -185,8 +185,9 @@ Add-Type -AssemblyName 'System.Drawing'
         #endregion
 
         # Overwrite the EXIF DateTime property in the image and set
-        $ExifDT.Value=[Byte[]][System.Text.Encoding]::ASCII.GetBytes($ExifTime)
-        $Img.SetPropertyItem($ExifDT)
+        #$ExifDT.Value=[Byte[]][System.Text.Encoding]::ASCII.GetBytes($ExifTime)
+        $ExifDTConverted = [Byte[]][System.Text.Encoding]::ASCII.GetBytes($ExifTime)
+        $Img.SetPropertyItem($ExifDTConverted)
 
 
 
