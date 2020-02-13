@@ -22,16 +22,27 @@ Function Set-ExifDate {
         The desired DateTaken to be assigned to the specified file(s).
         Offset can be positive or negative and must be convertible to a [TimeSpan] type.
 
-        .PARAMETER PassThru
-        Switch parameter, if specified the paths of the image files processed are written to the pipeline.
-        The PathInfo objects are additionally decorated with the Old and New EXIF DateTaken values.
+        .EXAMPLE
+        Set-ExifDate `
+            -Path "C:\temp\from_pantry_view.JPG"
+            -DateTaken "2019-01-26" -Verbose
+        Set the date taken and other dates on image "C:\temp\from_pantry_view.JPG" to 2019-01-26
 
         .EXAMPLE
-        [datetime]$datetaken="2019-01-26"; Update-ExifDateTaken -Path "C:\temp\from_pantry_view.JPG"
-        -DateTaken $datetaken -Verbose
-        Set the image "C:\temp\from_pantry_view.JPG" to 2019-01-26
+        $path_to_search = "\\diskstation\photo\From_Steve\Photos_and_videos\Family2_Scanned_From_Mom\1984"
+        $filesearch_pattern = "dec25_1984"
+        $date_taken = "1984-12-25"
+        gci $path_to_search | `
+            Where-Object {$_.Name -like "*$filesearch_pattern*"} | `
+            %{
+                Set-ExifDate `
+                    -Path $_.FullName `
+                    -DateTaken $date_taken
+            }
 
-
+        Loops through \\diskstation\photo\From_Steve\Photos_and_videos\Family2_Scanned_From_Mom\1984
+        looking for files containing the text "dec25_1984", and then sets the date properties to
+        "1984-12-25" for each of them.
     #>
 
     Param (
