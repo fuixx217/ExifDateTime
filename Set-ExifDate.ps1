@@ -1,5 +1,7 @@
 Add-Type -AssemblyName 'System.Drawing'
 
+. .\Test-Image.ps1
+
 Function Set-ExifDate {
 
     <#
@@ -14,7 +16,7 @@ Function Set-ExifDate {
         and "Created Date" to the provided DateTaken value.
 
         .PARAMETER Path
-        The image file or files to process.
+        The image file to process.
 
         .PARAMETER DateTaken
         The desired DateTaken to be assigned to the specified file(s).
@@ -35,14 +37,12 @@ Function Set-ExifDate {
     Param (
             [Parameter(Mandatory=$True,ValueFromPipeline=$True,ValueFromPipelineByPropertyName=$True)]
             [Alias('FullName', 'FileName')]
-            $Path,
+            [string]$Path,
             [Parameter(Mandatory=$True)]
             [datetime]$DateTaken
     )
-    #$Path = "\\diskstation\photo\From_Steve\Photos_and_videos\Family2_Scanned_From_Mom\1971\jun_1971Dad_8th_Grade.jpg"
-    #$Path = "\\diskstation\photo\From_Steve\Photos_and_videos\Family2_Scanned_From_Mom\1984\aug_1984_stephen83_30_mos.jpg"
-    #[datetime]$DateTaken = "1971-06-05";
 
+    #Test to see if the file path exists; if not, throw an error
     if (Test-Path $Path) {
         $PathItem = $Path
     }
@@ -50,64 +50,68 @@ Function Set-ExifDate {
         throw $_.Exception.Message
     }
 
-$ImageFile=(Get-Item $PathItem).FullName
-write-verbose "ImageFile variable is $ImageFile"
+    #Test to see if the file provided is an image file.  If not, throw an error
+    if (-not (Test-Image -Path $Path)) {
+        throw "Not a valid image file that can have the Exif data modified"
+    }
 
-$FileStream= New-Object System.IO.FileStream($ImageFile,
-                [System.IO.FileMode]::Open,
-                [System.IO.FileAccess]::Read,
-                [System.IO.FileShare]::Read,
-                1024,     # Buffer size
-                [System.IO.FileOptions]::SequentialScan
-            )
-            $Img=[System.Drawing.Imaging.Metafile]::FromStream($FileStream)
-#$Img.PropertyItems
+    #Load the image file into a FileStream variable
+    $ImageFile=(Get-Item $PathItem).FullName
+    write-verbose "ImageFile variable is $ImageFile"
 
-#set up an item to update with the new date
-write-verbose "no previous exif date (aka [date taken]) property exists"
-                
-$ExifTime = $DateTaken.ToString("yyyy:MM:dd HH:mm:ss`0")
-#[Byte[]][System.Text.Encoding]::ASCII.GetBytes($ExifTime)
+    $FileStream= New-Object System.IO.FileStream($ImageFile,
+                    [System.IO.FileMode]::Open,
+                    [System.IO.FileAccess]::Read,
+                    [System.IO.FileShare]::Read,
+                    1024,     # Buffer size
+                    [System.IO.FileOptions]::SequentialScan
+                )
+                $Img=[System.Drawing.Imaging.Metafile]::FromStream($FileStream)
 
-#"checking first found property"
-#$PropertyItemId = $Img.PropertyItems[1].Id
-#$PropertyItemId
-#"after first found property"
-
-#274 seems to exist for all files/images
-#obtain a property to establish an object
-$PropertyItemId = $Img.PropertyItems[1].Id
-#$PropertyItemId
-$ExistingProperty=$Img.GetPropertyItem("$PropertyItemId")
-$ExistingProperty.Id = 36867
-$ExistingProperty.Len = 41
-$ExistingProperty.Type = 2
-$ExistingProperty.Value = [Byte[]][System.Text.Encoding]::ASCII.GetBytes($ExifTime)
-#Set Property 36867
-$Prop36867 = $ExistingProperty
-$Img.SetPropertyItem($Prop36867)
-
-$MemoryStream=New-Object System.IO.MemoryStream
-$Img.Save($MemoryStream, $Img.RawFormat)
-$Img.Dispose()
-$FileStream.Close()
-
-$Writer = New-Object System.IO.FileStream($ImageFile, [System.IO.FileMode]::Create)
-$MemoryStream.WriteTo($Writer)
+    #Establish a variable to be used for the expected format of the Exif Date Taken property
+    $ExifTime = $DateTaken.ToString("yyyy:MM:dd HH:mm:ss`0")
 
 
+    #obtain a property to establish an object to modify
+    $PropertyItemId = $Img.PropertyItems[1].Id
+    $ExistingProperty=$Img.GetPropertyItem("$PropertyItemId")
 
-If ($Writer) {$Writer.Flush(); $Writer.Close()}
-$MemoryStream.Close(); $MemoryStream.Dispose()
-#$Prop36867
+    #Change the values for each sub-property of the loaded ItemProperty
+    #36867 is the Date Taken property ID
+    #Len of 41 seemed to be what was on other images with the 36867 property already existing
+    #Type 2 seemed to be what was on other images with the 36867 property already existing
+    #Value is the encoded ASCII value of the DateTaken provided
+    $ExistingProperty.Id = 36867
+    $ExistingProperty.Len = 41
+    $ExistingProperty.Type = 2
+    $ExistingProperty.Value = [Byte[]][System.Text.Encoding]::ASCII.GetBytes($ExifTime)
 
-[System.IO.FileSystemInfo]$fsInfo = new-object System.IO.FileInfo($PathItem)
-        
-        $fsInfo.CreationTime = $DateTaken
-        $fsInfo.LastWriteTime = $DateTaken
-        $fsInfo.LastAccessTime = $DateTaken
+    #Set Property 36867 on the $img variable loaded
+    $Prop36867 = $ExistingProperty
+    $Img.SetPropertyItem($Prop36867)
+
+    #Establish a memory stream to stash the image to use later in the function
+    $MemoryStream=New-Object System.IO.MemoryStream
+    $Img.Save($MemoryStream, $Img.RawFormat)
+
+    #close the image and file stream opened to read the image
+    $Img.Dispose()
+    $FileStream.Close()
+
+    #Write the updated file from the memory stream that is still "active"
+    $Writer = New-Object System.IO.FileStream($ImageFile, [System.IO.FileMode]::Create)
+    $MemoryStream.WriteTo($Writer)
+
+    #clean up variables for the writer and the memory stream
+    If ($Writer) {$Writer.Flush(); $Writer.Close()}
+    $MemoryStream.Close(); $MemoryStream.Dispose()
 
 
-#$ExistingDateTaken=$Img.GetPropertyItem('36867')
+    #update the created date, last modified date, and last accessed date to that which was provided
+    [System.IO.FileSystemInfo]$fsInfo = new-object System.IO.FileInfo($PathItem)
+            
+            $fsInfo.CreationTime = $DateTaken
+            $fsInfo.LastWriteTime = $DateTaken
+            $fsInfo.LastAccessTime = $DateTaken
 
-#}
+    }
