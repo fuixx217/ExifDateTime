@@ -29,15 +29,16 @@ Function Set-ExifDate {
         Set the date taken and other dates on image "C:\temp\from_pantry_view.JPG" to 2019-01-26
 
         .EXAMPLE
-        $path_to_search = "\\diskstation\photo\From_Steve\Photos_and_videos\Family2_Scanned_From_Mom\1984"
-        $filesearch_pattern = "dec25_1984"
-        $date_taken = "1984-12-25"
+        $path_to_search = "\\diskstation\photo\From_Steve\Photos_and_videos\Family2_Scanned_From_Mom\1992"
+        $filesearch_pattern = "dec25_1992"; $date_taken = "1992-12-25"
         gci $path_to_search | `
             Where-Object {$_.Name -like "*$filesearch_pattern*"} | `
             %{
                 Set-ExifDate `
                     -Path $_.FullName `
                     -DateTaken $date_taken
+                
+                Start-Sleep -Milliseconds 500
             }
 
         Loops through \\diskstation\photo\From_Steve\Photos_and_videos\Family2_Scanned_From_Mom\1984
